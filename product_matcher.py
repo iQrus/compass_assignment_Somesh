@@ -82,7 +82,7 @@ def normalize_product_name(name: str) -> str:
     
     return normalized
 
-def get_openai_embeddings(batch_size: int = 1000, model_name: str = "text-embedding-3-small") -> OpenAIEmbeddings:
+def get_openai_embeddings(batch_size: int = 2000, model_name: str = "text-embedding-3-small") -> OpenAIEmbeddings:
     """Initialize OpenAI embeddings with API key.
     
     Args:
@@ -98,7 +98,7 @@ def get_openai_embeddings(batch_size: int = 1000, model_name: str = "text-embedd
         logger.warning("OPENAI_API_KEY not found in environment variables")
         api_key = "dummy_key"  # This will be handled in the UI
     
-    return OpenAIEmbeddings(batch_size=batch_size, model=model_name)
+    return OpenAIEmbeddings(chunk_size=batch_size, model=model_name)
 
 def create_vector_store(data: pd.DataFrame, column: str, embedding_model: str = "text-embedding-3-small") -> FAISS:
     """Create FAISS vector store from product names.
@@ -133,7 +133,7 @@ def match_products_batch(
     external_df: pd.DataFrame,
     internal_df: pd.DataFrame,
     vector_store: FAISS,
-    model_name: str = "gpt-3.5-turbo",
+    model_name: str = "gpt-4",
     temperature: float = 0.0,
     confidence_threshold: float = 70.0,
     top_k: int = 5,

@@ -11,10 +11,8 @@ from product_matcher import (
     load_data, 
     load_validation_data, 
     create_vector_store, 
-    match_products,
     match_products_batch,
-    evaluate_validation_set,
-    get_openai_embeddings
+    evaluate_validation_set
 )
 from dashboard import ProductMatchingDashboard
 
@@ -109,7 +107,7 @@ def main():
     model_name = st.sidebar.selectbox(
         "LLM Model",
         ["gpt-3.5-turbo", "gpt-4"],
-        index=0,
+        index=1,
         help="Select the OpenAI model to use for matching. GPT-4 is more accurate but slower and more expensive."
     )
     
@@ -138,6 +136,15 @@ def main():
         value=5,
         step=1,
         help="Number of candidate products to consider for each external product."
+    )
+    
+    batch_size = st.sidebar.slider(
+        "Number of Products per Batch",
+        min_value=1,
+        max_value=10,
+        value=5,
+        step=1,
+        help="Number of external products to consider for each batch."
     )
     
     # Initialize data
