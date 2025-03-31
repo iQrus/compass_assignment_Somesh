@@ -1,0 +1,12 @@
+streamlit==1.24.0
+pandas==2.0.3
+numpy==1.24.3
+langchain==0.0.236
+openai==0.27.8
+faiss-cpu==1.7.4
+plotly==5.15.0
+scikit-learn==1.3.0
+altair==5.0.1
+python-dotenv==1.0.0
+tiktoken==0.5.1
+wordcloud==1.9.2
