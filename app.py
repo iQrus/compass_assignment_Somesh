@@ -185,7 +185,7 @@ def main():
         st.experimental_rerun()
     
     # Main tabs
-    tab1, tab2, tab3 = st.tabs(["Match Products", "Validation", "Data Explorer"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Match Products", "Validation", "Data Explorer", "How it Works?"])
     
     # Tab 1: Product Matching
     with tab1:
@@ -629,6 +629,121 @@ def main():
                 color_discrete_sequence=['#1f77b4', '#ff7f0e']
             )
             st.plotly_chart(fig, use_container_width=True)
+            
+    with tab4:
+        # Create a modal-like effect with a full-page markdown explanation
+        with st.container():
+            st.markdown("# 🔍 How the Product Matcher Works")
+            
+            st.markdown("""
+            ## Overview
+            This application uses AI to automatically match external products with internal products. 
+            It combines vector embeddings for similarity search with LLM-based matching for high accuracy.
+            
+            ## The Challenge
+            The convenience store operates with two different product catalogs:
+            
+            - **External Product List**: From suppliers (typically in UPPERCASE, with formats like "DIET LIPTON GREEN TEA W/ CITRUS 20 OZ")
+            - **Internal Product List**: From the store's inventory system (typically in Title Case, with formats like "Lipton Diet Green Tea with Citrus (20oz)")
+            
+            Manually mapping these products is time-consuming and error-prone, especially when dealing with thousands of products.
+            
+            ## Our Solution Architecture
+            
+            ### Step 1: Data Loading & Preprocessing
+            - Load external and internal product lists
+            - Clean and normalize product names
+            - Remove newlines, standardize case, expand abbreviations
+            
+            ### Step 2: Vector Embedding Generation
+            - Convert product names into semantic vector representations using OpenAI's text-embedding-3-small model
+            - Store these embeddings in a FAISS vector database for efficient similarity search
+            - This captures the semantic meaning of product descriptions, not just exact word matches
+            
+            ### Step 3: Candidate Selection via Vector Search
+            - For each external product, find the top-K most similar internal products based on embedding similarity
+            - This narrows down the search space from 16,000+ products to just a few candidates
+            - Uses cosine similarity to measure how close product descriptions are in the vector space
+            
+            ### Step 4: Batch Processing for Efficiency
+            - Group external products into batches (configurable batch size)
+            - Process multiple products in a single API call to the LLM
+            - This optimizes cost and improves throughput
+            
+            ### Step 5: LLM-Based Exact Matching
+            - Send each batch to a large language model with a carefully engineered prompt
+            - The LLM evaluates each external product against its candidate internal products
+            - Makes exact matching decisions considering manufacturer, name, and size
+            - Generates a confidence score and reasoning for each decision
+            
+            ### Step 6: Confidence Thresholding
+            - Apply a confidence threshold to the matches
+            - Only accept matches above the threshold to ensure high precision
+            - Clearly mark products without matches
+            
+            ### Step 7: Validation & Analysis
+            - Evaluate results against a validation set with known matches
+            - Calculate performance metrics: accuracy, precision, recall, F1 score
+            - Provide analytics on matching patterns and product distributions
+            
+            ## Key Components
+            
+            ### 1. Vector Embedding Search
+            - Uses OpenAI's text-embedding-3-small model
+            - Embeddings are generated in batches of 1000 for efficiency
+            - FAISS vector database enables sub-linear time similarity search
+            
+            ### 2. Prompt Engineering
+            Our prompt explicitly instructs the LLM to:
+            - Check for exact matches (manufacturer, name, size)
+            - Consider common transformations (abbreviations, case differences)
+            - Look for subtle differences that indicate non-matches
+            - Provide confidence scores and reasoning for decisions
+            
+            ### 3. Batch Processing
+            - Groups external products into batches to reduce API calls
+            - Includes robust error handling for partial batch failures
+            - Dynamically adjustable batch size through the UI
+            
+            ### 4. Validation Framework
+            - Evaluates against a validation set with known matches
+            - Calculates overall metrics and confidence-based metrics
+            - Visualizes results with confusion matrices and comparative charts
+            
+            ### 5. Interactive Dashboard
+            - Visual exploration of matching results
+            - Detailed analytics on product data distributions
+            - Comparative analysis between external and internal formats
+            - Example match analysis with explanations
+            
+            ## Parameters & Customization
+            
+            The application offers several customizable parameters:
+            
+            - **LLM Model**: Choose between gpt-3.5-turbo and gpt-4
+            - **Temperature**: Control randomness in the LLM's responses
+            - **Confidence Threshold**: Set minimum confidence for valid matches
+            - **Top K Candidates**: Number of similar products to consider
+            - **Batch Size**: Number of products to process in each LLM call
+            
+            ## Results & Downloads
+            
+            - View detailed match results with confidence scores
+            - Analyze validation metrics for system performance
+            - Download match results and validation data as CSV files
+            - Explore product data distributions and patterns
+            
+            ## Behind the Scenes: Analytics
+            
+            The analytics section provides insights into:
+            
+            - **Product Categorization**: Distribution of product types
+            - **Size Information Analysis**: How sizes are specified across catalogs
+            - **Case Format Analysis**: Capitalization differences
+            - **Word Presence Comparison**: Common terms across both catalogs
+            
+            These insights help understand the transformation patterns needed for product matching and guide future improvements to the system.
+            """)
 
 # Run the app
 if __name__ == "__main__":
