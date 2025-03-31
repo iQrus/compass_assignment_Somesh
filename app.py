@@ -5,6 +5,11 @@ import time
 import logging
 import os
 from typing import Dict, List, Any, Tuple, Optional
+import plotly.express as px
+import plotly.graph_objects as go
+import re
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
 
 # Import our modules
 from product_matcher import (
@@ -18,7 +23,7 @@ from dashboard import ProductMatchingDashboard
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("app.log"),
@@ -272,43 +277,358 @@ def main():
                     st.info(f"Showing 100 out of {len(internal_matches)} matches")
         
         # Data distributions
-        st.subheader("Data Distributions")
-        
-        tab_external, tab_internal = st.tabs(["External Products", "Internal Products"])
-        
+        st.subheader("Data Distributions & Analytics")
+
+        tab_external, tab_internal, tab_comparative = st.tabs(["External Products", "Internal Products", "Comparative Analysis"])
+
         with tab_external:
-            # External product stats
+            st.write("### External Product Analytics")
+            
+            # Create two columns for analytics
             col1, col2 = st.columns(2)
             
             with col1:
-                # Character length distribution
-                external_df["char_length"] = external_df["PRODUCT_NAME"].str.len()
-                st.write("Character Length Distribution:")
-                st.bar_chart(external_df["char_length"].value_counts().sort_index())
+                try:
+                    st.write("#### Word Cloud of External Products")
+                    
+                    # Create a string of all product names
+                    text = ' '.join(external_df["PRODUCT_NAME"].str.lower())
+                    
+                    # Remove common stopwords
+                    stopwords = ['the', 'and', 'a', 'an', 'in', 'on', 'at', 'with', 'by', 'for', 'to', 'of', 'is']
+                    for word in stopwords:
+                        text = text.replace(f" {word} ", " ")
+                    
+                    # Generate the word cloud
+                    wordcloud = WordCloud(
+                        width=800, 
+                        height=400, 
+                        background_color='white', 
+                        max_words=100,
+                        colormap='Blues',
+                        contour_width=1,
+                        contour_color='steelblue'
+                    ).generate(text)
+                    
+                    # Display the word cloud using Matplotlib
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.imshow(wordcloud, interpolation='bilinear')
+                    ax.axis("off")
+                    st.pyplot(fig)
+                except ImportError:
+                    st.warning("WordCloud library not installed. Install with `pip install wordcloud`.")
+                    
+                    # Fallback to bar chart of common words
+                    st.write("#### Most Common Words in External Products")
+                    all_words = ' '.join(external_df["PRODUCT_NAME"].str.lower()).split()
+                    word_counts = pd.Series(all_words).value_counts().head(20)
+                    # Filter out stopwords
+                    word_counts = word_counts[~word_counts.index.isin(stopwords)]
+                    st.bar_chart(word_counts)
             
             with col2:
-                # Word count distribution
-                external_df["word_count"] = external_df["PRODUCT_NAME"].str.split().str.len()
-                st.write("Word Count Distribution:")
-                st.bar_chart(external_df["word_count"].value_counts().sort_index())
-        
+                # Size distribution analysis
+                st.write("#### Size Information Analysis")
+                
+                # Extract size information using regex
+                import re
+                
+                def extract_size(name):
+                    # Look for patterns like "12 OZ", "16oz", "1.5 lb", "(20oz)" etc.
+                    size_pattern = r'(\d+(\.\d+)?)\s*(oz|lb|g|ml|l|fl\s*oz|gal|kg|ct|pack|\d+\s*pk|count)'
+                    size_match = re.search(size_pattern, name, re.IGNORECASE)
+                    if size_match:
+                        return size_match.group(0).strip()
+                    return None
+                
+                # Apply the extraction to all product names
+                external_df['size_info'] = external_df["PRODUCT_NAME"].apply(extract_size)
+                
+                # Count products with size information
+                has_size = external_df['size_info'].notna().sum()
+                no_size = len(external_df) - has_size
+                
+                # Create pie chart for size presence
+                labels = ['With Size Info', 'Without Size Info']
+                values = [has_size, no_size]
+                
+                fig = px.pie(
+                    values=values,
+                    names=labels,
+                    title="Products with Size Information",
+                    color_discrete_sequence=px.colors.sequential.Blues
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Most common sizes
+                if has_size > 0:
+                    st.write("#### Most Common Product Sizes")
+                    size_counts = external_df['size_info'].value_counts().head(10)
+                    fig = px.bar(
+                        x=size_counts.index,
+                        y=size_counts.values,
+                        labels={"x": "Size", "y": "Count"},
+                        title="Top 10 Product Sizes",
+                        color=size_counts.values,
+                        color_continuous_scale="Blues"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Third section for advanced analytics
+            st.write("#### Product Categorization Analysis")
+            
+            # Create word-based categorization
+            category_keywords = {
+                'Beverages': ['tea', 'coffee', 'water', 'juice', 'milk', 'cola', 'drink', 'energy', 'soda', 'coke', 'pepsi'],
+                'Snacks': ['chip', 'cookie', 'chocolate', 'candy', 'snack', 'bar', 'cracker', 'popcorn'],
+                'Bakery': ['bread', 'bagel', 'cake', 'muffin', 'donut', 'danish', 'bun', 'roll', 'pastry'],
+                'Dairy': ['milk', 'cheese', 'yogurt', 'cream', 'butter', 'dairy'],
+                'Meat': ['meat', 'beef', 'chicken', 'pork', 'sausage', 'bacon', 'ham', 'turkey'],
+                'Produce': ['fruit', 'vegetable', 'apple', 'banana', 'orange', 'fresh', 'salad', 'produce'],
+                'Household': ['paper', 'cleaner', 'detergent', 'soap', 'tissue', 'household'],
+                'Health & Beauty': ['shampoo', 'lotion', 'soap', 'toothpaste', 'deodorant']
+            }
+            
+            def categorize_product(name):
+                name_lower = name.lower()
+                for category, keywords in category_keywords.items():
+                    if any(keyword in name_lower for keyword in keywords):
+                        return category
+                return 'Other'
+            
+            external_df['category'] = external_df["PRODUCT_NAME"].apply(categorize_product)
+            
+            # Display category distribution
+            category_counts = external_df['category'].value_counts()
+            
+            fig = px.pie(
+                values=category_counts.values,
+                names=category_counts.index,
+                title="Product Categories (Keyword-Based)",
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
         with tab_internal:
+            st.write("### Internal Product Analytics")
+            
             # Sample for performance
             sample_df = internal_df.sample(min(1000, len(internal_df)), random_state=42)
             
+            # Create two columns for analytics
             col1, col2 = st.columns(2)
             
             with col1:
-                # Character length distribution
-                sample_df["char_length"] = sample_df["LONG_NAME"].str.len()
-                st.write("Character Length Distribution (Sample):")
-                st.bar_chart(sample_df["char_length"].value_counts().sort_index())
+                try:
+                    st.write("#### Word Cloud of Internal Products (Sample)")
+                    
+                    # Create a string of all product names
+                    text = ' '.join(sample_df["LONG_NAME"].str.lower())
+                    
+                    # Remove common stopwords
+                    stopwords = ['the', 'and', 'a', 'an', 'in', 'on', 'at', 'with', 'by', 'for', 'to', 'of', 'is']
+                    for word in stopwords:
+                        text = text.replace(f" {word} ", " ")
+                    
+                    # Generate the word cloud
+                    wordcloud = WordCloud(
+                        width=800, 
+                        height=400, 
+                        background_color='white', 
+                        max_words=100,
+                        colormap='Blues',
+                        contour_width=1,
+                        contour_color='steelblue'
+                    ).generate(text)
+                    
+                    # Display the word cloud using Matplotlib
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.imshow(wordcloud, interpolation='bilinear')
+                    ax.axis("off")
+                    st.pyplot(fig)
+                except ImportError:
+                    st.warning("WordCloud library not installed. Install with `pip install wordcloud`.")
+                    
+                    # Fallback to bar chart of common words
+                    st.write("#### Most Common Words in Internal Products")
+                    all_words = ' '.join(sample_df["LONG_NAME"].str.lower()).split()
+                    word_counts = pd.Series(all_words).value_counts().head(20)
+                    # Filter out stopwords
+                    word_counts = word_counts[~word_counts.index.isin(stopwords)]
+                    st.bar_chart(word_counts)
             
             with col2:
-                # Word count distribution
-                sample_df["word_count"] = sample_df["LONG_NAME"].str.split().str.len()
-                st.write("Word Count Distribution (Sample):")
-                st.bar_chart(sample_df["word_count"].value_counts().sort_index())
+                # Size distribution analysis for internal products
+                st.write("#### Size Information Analysis")
+                
+                # Extract size information using regex
+                def extract_size(name):
+                    # Look for patterns like "12 OZ", "16oz", "1.5 lb", "(20oz)" etc.
+                    size_pattern = r'(\d+(\.\d+)?)\s*(oz|lb|g|ml|l|fl\s*oz|gal|kg|ct|pack|\d+\s*pk|count)'
+                    size_match = re.search(size_pattern, name, re.IGNORECASE)
+                    if size_match:
+                        return size_match.group(0).strip()
+                    
+                    # Also look for patterns like "(20oz)" which are common in internal products
+                    paren_pattern = r'\((\d+(\.\d+)?)(oz|lb|g|ml|l)\)'
+                    paren_match = re.search(paren_pattern, name, re.IGNORECASE)
+                    if paren_match:
+                        return paren_match.group(0).strip()
+                    
+                    return None
+                
+                # Apply the extraction to sample of internal products
+                sample_df['size_info'] = sample_df["LONG_NAME"].apply(extract_size)
+                
+                # Count products with size information
+                has_size = sample_df['size_info'].notna().sum()
+                no_size = len(sample_df) - has_size
+                
+                # Create pie chart for size presence
+                labels = ['With Size Info', 'Without Size Info']
+                values = [has_size, no_size]
+                
+                fig = px.pie(
+                    values=values,
+                    names=labels,
+                    title="Products with Size Information (Sample)",
+                    color_discrete_sequence=px.colors.sequential.Blues
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Most common sizes
+                if has_size > 0:
+                    st.write("#### Most Common Product Sizes")
+                    size_counts = sample_df['size_info'].value_counts().head(10)
+                    fig = px.bar(
+                        x=size_counts.index,
+                        y=size_counts.values,
+                        labels={"x": "Size", "y": "Count"},
+                        title="Top 10 Product Sizes (Sample)",
+                        color=size_counts.values,
+                        color_continuous_scale="Blues"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Format analysis
+            st.write("#### Format Analysis of Internal Products")
+            
+            # Check for parentheses in size format
+            has_parentheses = sample_df["LONG_NAME"].str.contains(r'\(\d+(\.\d+)?(oz|lb|g|ml|l)\)', case=False).sum()
+            has_space_unit = sample_df["LONG_NAME"].str.contains(r'\d+(\.\d+)?\s+(oz|lb|g|ml|l)', case=False).sum()
+            other_size_format = has_size - has_parentheses - has_space_unit
+            
+            # Create pie chart for size format
+            labels = ['Parentheses Format (20oz)', 'Space Format (20 oz)', 'Other Format']
+            values = [has_parentheses, has_space_unit, other_size_format]
+            
+            fig = px.pie(
+                values=values,
+                names=labels,
+                title="Size Format Distribution (Sample)",
+                color_discrete_sequence=px.colors.sequential.Purples
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab_comparative:
+            st.write("### Comparative Analysis")
+            
+            # Create a size format comparison
+            st.write("#### Size Format Comparison")
+            
+            # Count products with different size formats in external dataset
+            external_parentheses = external_df["PRODUCT_NAME"].str.contains(r'\(\d+(\.\d+)?(oz|lb|g|ml|l)\)', case=False).sum()
+            external_space_unit = external_df["PRODUCT_NAME"].str.contains(r'\d+(\.\d+)?\s+(oz|lb|g|ml|l)', case=False).sum()
+            
+            # Count for internal (sample)
+            internal_parentheses = sample_df["LONG_NAME"].str.contains(r'\(\d+(\.\d+)?(oz|lb|g|ml|l)\)', case=False).sum()
+            internal_space_unit = sample_df["LONG_NAME"].str.contains(r'\d+(\.\d+)?\s+(oz|lb|g|ml|l)', case=False).sum()
+            
+            # Create a comparison dataframe
+            format_comparison = pd.DataFrame({
+                'Format': ['Parentheses Format (20oz)', 'Space Format (20 oz)'],
+                'External': [external_parentheses, external_space_unit],
+                'Internal': [internal_parentheses, internal_space_unit]
+            })
+            
+            # Normalize to percentages
+            format_comparison['External %'] = format_comparison['External'] / len(external_df) * 100
+            format_comparison['Internal %'] = format_comparison['Internal'] / len(sample_df) * 100
+            
+            # Create a grouped bar chart
+            fig = px.bar(
+                format_comparison,
+                x='Format',
+                y=['External %', 'Internal %'],
+                title="Size Format Comparison (Percentage)",
+                barmode='group',
+                color_discrete_sequence=['#1f77b4', '#ff7f0e']
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Word presence comparison
+            st.write("#### Common Word Presence Comparison")
+            
+            # Common words to check in both datasets
+            common_words = ['chocolate', 'water', 'energy', 'coffee', 'tea', 'milk', 'soda', 'candy', 'chip', 'fruit']
+            
+            # Create comparison data
+            word_comparison = []
+            
+            for word in common_words:
+                external_percent = external_df["PRODUCT_NAME"].str.contains(word, case=False).mean() * 100
+                internal_percent = sample_df["LONG_NAME"].str.contains(word, case=False).mean() * 100
+                word_comparison.append({
+                    'Word': word,
+                    'External %': external_percent,
+                    'Internal %': internal_percent
+                })
+            
+            word_comparison_df = pd.DataFrame(word_comparison)
+            
+            # Create a grouped bar chart
+            fig = px.bar(
+                word_comparison_df,
+                x='Word',
+                y=['External %', 'Internal %'],
+                title="Word Presence Comparison",
+                barmode='group',
+                color_discrete_sequence=['#1f77b4', '#ff7f0e']
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Case analysis
+            st.write("#### Case Format Analysis")
+            
+            # Check case format in external products
+            external_uppercase = external_df["PRODUCT_NAME"].str.isupper().mean() * 100
+            external_titlecase = (external_df["PRODUCT_NAME"].str.istitle() | 
+                                (external_df["PRODUCT_NAME"].str.split().apply(lambda x: all(word.istitle() for word in x if word.isalpha())))).mean() * 100
+            external_other = 100 - external_uppercase - external_titlecase
+            
+            # Check case format in internal products
+            internal_uppercase = sample_df["LONG_NAME"].str.isupper().mean() * 100
+            internal_titlecase = (sample_df["LONG_NAME"].str.istitle() | 
+                                (sample_df["LONG_NAME"].str.split().apply(lambda x: all(word.istitle() for word in x if word.isalpha())))).mean() * 100
+            internal_other = 100 - internal_uppercase - internal_titlecase
+            
+            # Create data for case comparison
+            case_comparison = pd.DataFrame({
+                'Case Format': ['UPPERCASE', 'Title Case', 'Other'],
+                'External %': [external_uppercase, external_titlecase, external_other],
+                'Internal %': [internal_uppercase, internal_titlecase, internal_other]
+            })
+            
+            # Create a grouped bar chart
+            fig = px.bar(
+                case_comparison,
+                x='Case Format',
+                y=['External %', 'Internal %'],
+                title="Case Format Comparison",
+                barmode='group',
+                color_discrete_sequence=['#1f77b4', '#ff7f0e']
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 # Run the app
 if __name__ == "__main__":

@@ -110,6 +110,20 @@ class ProductMatchingDashboard:
         """Render the match details section of the dashboard."""
         st.header("📋 Match Details")
         
+        # Add a download button at the top for convenience
+        if len(self.results_df) > 0:
+            download_df = self.results_df[["External_Product_Name", "Matched_Internal_Product", "Confidence_Score", "Match_Found", "Reasoning"]]
+            csv = download_df.to_csv(index=False)
+            
+            st.download_button(
+                label="Download Results as CSV",
+                data=csv,
+                file_name="product_matching_results.csv",
+                mime="text/csv",
+                help="Download the matching results as a CSV file",
+                key="download_csv_top"
+            )
+        
         # Create a searchable table
         st.dataframe(
             self.results_df[["External_Product_Name", "Matched_Internal_Product", "Confidence_Score", "Match_Found", "Reasoning"]],

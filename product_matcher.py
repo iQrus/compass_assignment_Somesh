@@ -14,7 +14,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("product_matcher.log"),
