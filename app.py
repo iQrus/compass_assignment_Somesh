@@ -11,7 +11,8 @@ from product_matcher import (
     load_data, 
     load_validation_data, 
     create_vector_store, 
-    match_products, 
+    match_products,
+    match_products_batch,
     evaluate_validation_set,
     get_openai_embeddings
 )
@@ -194,14 +195,15 @@ def main():
             with st.spinner("Matching products..."):
                 try:
                     # Run the matching algorithm
-                    results_df = match_products(
+                    results_df = match_products_batch(
                         external_df,
                         internal_df,
                         vector_store,
                         model_name=model_name,
                         temperature=temperature,
                         confidence_threshold=confidence_threshold,
-                        top_k=top_k
+                        top_k=top_k,
+                        batch_size=batch_size
                     )
                     
                     # Evaluate against validation set
